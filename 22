@@ -2,7 +2,7 @@ local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 local coreGui = game:GetService("CoreGui")
 local replicatedStorage = game:GetService("ReplicatedStorage")
-local remote = replicatedStorage.Remotes.CommF_
+local remote = replicatedStorage:WaitForChild("Remotes"):WaitForChild("CommF_")
 
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "ModernFruitSpawner"
@@ -130,12 +130,12 @@ btnGlow.Thickness = 2
 btnGlow.Transparency = 0.4
 btnGlow.Parent = spawnBtn
 
--- Duplicate Fruit Button (Visual Dup with counter)
+-- Dupe Fruit Button (real duplication via tool clone)
 local dupBtn = Instance.new("TextButton")
 dupBtn.Size = UDim2.new(0.85, 0, 0, 35)
 dupBtn.Position = UDim2.new(0.075, 0, 0.65, 0)
 dupBtn.BackgroundColor3 = Color3.fromRGB(30, 15, 40)
-dupBtn.Text = "🔄 Visual Dup (x2)"
+dupBtn.Text = "🔄 Dupe Fruit"
 dupBtn.TextColor3 = Color3.fromRGB(200, 150, 255)
 dupBtn.Font = Enum.Font.GothamBold
 dupBtn.TextSize = 14
@@ -197,23 +197,30 @@ end
 coroutine.wrap(animateCopyBorder)()
 
 local lastFruitName = ""
-local statusMode = "none" 
+local statusMode = "none"
 local KEYWORD = "fruit added to"
-local fruitCounters = {} -- Store duplicate counts per fruit
 
+-- Watch game text labels to spoof spawn/error messages
 local function watchObject(obj)
     if obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox") then
+        local rewriting = false
         local function checkText()
+            if rewriting then return end
             local text = string.lower(obj.Text)
-            if string.find(text, KEYWORD) or string.find(text, "spawned successfully") or string.find(text, "not avalible") then
-                if statusMode == "error" then
-                    obj.Text = "Dragon (west) Is Currently not Avalible."
-                    obj.TextColor3 = Color3.fromRGB(255, 80, 80)
-                elseif statusMode == "spawn" then
-                    obj.Text = lastFruitName .. " Fruit spawned successfully!"
-                    obj.TextColor3 = Color3.fromRGB(144, 238, 144)
-                end
+            local matched = string.find(text, KEYWORD)
+                or string.find(text, "spawned successfully")
+                or string.find(text, "not avalible")
+            if not matched then return end
+
+            rewriting = true
+            if statusMode == "error" then
+                obj.Text = "Dragon (west) Is Currently not Avalible."
+                obj.TextColor3 = Color3.fromRGB(255, 80, 80)
+            elseif statusMode == "spawn" then
+                obj.Text = lastFruitName .. " Fruit spawned successfully!"
+                obj.TextColor3 = Color3.fromRGB(144, 238, 144)
             end
+            rewriting = false
         end
         checkText()
         obj:GetPropertyChangedSignal("Text"):Connect(checkText)
@@ -223,115 +230,7 @@ end
 for _, obj in ipairs(playerGui:GetDescendants()) do watchObject(obj) end
 playerGui.DescendantAdded:Connect(watchObject)
 
--- Function to find and update fruit count in inventory
-local function updateFruitCount(fruitName, newCount)
-    local fruitFound = false
-    
-    -- Search in all GUIs
-    local guis = {playerGui, coreGui}
-    
-    for _, gui in ipairs(guis) do
-        for _, obj in ipairs(gui:GetDescendants()) do
-            if obj:IsA("TextLabel") or obj:IsA("TextButton") then
-                if obj.Text and string.find(string.lower(obj.Text), string.lower(fruitName)) and string.find(string.lower(obj.Text), "blox fruit") then
-                    local parent = obj.Parent
-                    if parent then
-                        -- Check for existing counter
-                        local existingCounter = nil
-                        for _, child in ipairs(parent:GetChildren()) do
-                            if child:IsA("TextLabel") and child.Name == "Counter_" .. fruitName then
-                                existingCounter = child
-                                break
-                            end
-                        end
-                        
-                        if existingCounter then
-                            existingCounter.Text = "x" .. newCount
-                            fruitFound = true
-                        else
-                            -- Create new counter
-                            local counterLabel = Instance.new("TextLabel")
-                            counterLabel.Name = "Counter_" .. fruitName
-                            counterLabel.Size = UDim2.new(0, 35, 0, 25)
-                            counterLabel.Position = UDim2.new(
-                                obj.Position.X.Scale, 
-                                obj.Position.X.Offset + obj.Size.X.Offset + 5,
-                                obj.Position.Y.Scale, 
-                                obj.Position.Y.Offset
-                            )
-                            counterLabel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-                            counterLabel.BackgroundTransparency = 0
-                            counterLabel.Text = "x" .. newCount
-                            counterLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-                            counterLabel.TextSize = 14
-                            counterLabel.Font = Enum.Font.GothamBold
-                            counterLabel.Parent = parent
-                            
-                            local counterCorner = Instance.new("UICorner")
-                            counterCorner.CornerRadius = UDim.new(0, 4)
-                            counterCorner.Parent = counterLabel
-                            
-                            fruitFound = true
-                        end
-                    end
-                end
-            end
-        end
-    end
-    
-    -- If no fruit found, try to find by just the fruit name (without "Blox Fruit")
-    if not fruitFound then
-        for _, gui in ipairs(guis) do
-            for _, obj in ipairs(gui:GetDescendants()) do
-                if obj:IsA("TextLabel") or obj:IsA("TextButton") then
-                    if obj.Text and string.find(string.lower(obj.Text), string.lower(fruitName)) and not string.find(string.lower(obj.Text), "blox") then
-                        local parent = obj.Parent
-                        if parent then
-                            local existingCounter = nil
-                            for _, child in ipairs(parent:GetChildren()) do
-                                if child:IsA("TextLabel") and child.Name == "Counter_" .. fruitName then
-                                    existingCounter = child
-                                    break
-                                end
-                            end
-                            
-                            if existingCounter then
-                                existingCounter.Text = "x" .. newCount
-                                fruitFound = true
-                            else
-                                local counterLabel = Instance.new("TextLabel")
-                                counterLabel.Name = "Counter_" .. fruitName
-                                counterLabel.Size = UDim2.new(0, 35, 0, 25)
-                                counterLabel.Position = UDim2.new(
-                                    obj.Position.X.Scale, 
-                                    obj.Position.X.Offset + obj.Size.X.Offset + 5,
-                                    obj.Position.Y.Scale, 
-                                    obj.Position.Y.Offset
-                                )
-                                counterLabel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-                                counterLabel.BackgroundTransparency = 0
-                                counterLabel.Text = "x" .. newCount
-                                counterLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-                                counterLabel.TextSize = 14
-                                counterLabel.Font = Enum.Font.GothamBold
-                                counterLabel.Parent = parent
-                                
-                                local counterCorner = Instance.new("UICorner")
-                                counterCorner.CornerRadius = UDim.new(0, 4)
-                                counterCorner.Parent = counterLabel
-                                
-                                fruitFound = true
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end
-    
-    return fruitFound
-end
-
+-- Spawn handler (unchanged)
 spawnBtn.MouseButton1Click:Connect(function()
     local fruit = inputArea.Text
     if fruit == "" then return end
@@ -349,46 +248,46 @@ spawnBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- Visual Duplicate Function (adds +1 to fruit count in inventory)
+-- Dupe handler: clones the currently held Tool into the Backpack (from the duper script)
 dupBtn.MouseButton1Click:Connect(function()
-    local fruit = inputArea.Text
-    if fruit == "" then 
-        dupBtn.Text = "❌ No Fruit!"
+    local char = player.Character
+    if not char then
+        dupBtn.Text = "❌ Character not found"
         dupBtn.TextColor3 = Color3.fromRGB(255, 80, 80)
         task.wait(1.5)
-        dupBtn.Text = "🔄 Visual Dup (x2)"
+        dupBtn.Text = "🔄 Dupe Fruit"
         dupBtn.TextColor3 = Color3.fromRGB(200, 150, 255)
-        return 
+        return
     end
-    
-    -- Initialize counter if not exists
-    if not fruitCounters[fruit] then
-        fruitCounters[fruit] = 1
-    else
-        -- Increase counter
-        fruitCounters[fruit] = fruitCounters[fruit] + 1
+
+    local tool = char:FindFirstChildOfClass("Tool")
+    if not tool then
+        dupBtn.Text = "❌ No Fruit Held"
+        dupBtn.TextColor3 = Color3.fromRGB(255, 80, 80)
+        task.wait(1.5)
+        dupBtn.Text = "🔄 Dupe Fruit"
+        dupBtn.TextColor3 = Color3.fromRGB(200, 150, 255)
+        return
     end
-    
-    local newCount = fruitCounters[fruit]
-    
-    -- Update the inventory display
-    local success = pcall(function()
-        return updateFruitCount(fruit, newCount)
+
+    local success, err = pcall(function()
+        tool.Archivable = true
+        local clone = tool:Clone()
+        clone.Parent = player.Backpack
     end)
-    
+
     if success then
-        dupBtn.Text = "✅ " .. fruit .. " x" .. newCount
+        dupBtn.Text = "✅ Duped: " .. tool.Name
         dupBtn.TextColor3 = Color3.fromRGB(144, 238, 144)
-        task.wait(1.5)
-        dupBtn.Text = "🔄 Visual Dup (x2)"
-        dupBtn.TextColor3 = Color3.fromRGB(200, 150, 255)
     else
-        dupBtn.Text = "❌ Failed to find " .. fruit .. "!"
+        dupBtn.Text = "❌ Failed"
         dupBtn.TextColor3 = Color3.fromRGB(255, 80, 80)
-        task.wait(1.5)
-        dupBtn.Text = "🔄 Visual Dup (x2)"
-        dupBtn.TextColor3 = Color3.fromRGB(200, 150, 255)
+        warn("Dupe error: " .. tostring(err))
     end
+
+    task.wait(1.5)
+    dupBtn.Text = "🔄 Dupe Fruit"
+    dupBtn.TextColor3 = Color3.fromRGB(200, 150, 255)
 end)
 
 -- Copy Discord link to clipboard
